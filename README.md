@@ -5,7 +5,6 @@ PDF、Markdown、txt、コードファイルをローカルで取り込み、質
 ## セットアップ
 
 ```bash
-uv python install 3.12
 uv sync
 cp .env.example .env
 ```
