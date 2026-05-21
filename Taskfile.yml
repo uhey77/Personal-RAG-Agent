@@ -1,0 +1,51 @@
+version: "3"
+
+vars:
+  PY_FILES: app.py config.py providers.py loaders.py ingest.py rag.py
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  setup:
+    desc: Install Python 3.12, sync dependencies, and create .env if missing
+    cmds:
+      - uv python install 3.12
+      - uv sync
+      - cmd: cp .env.example .env
+        status:
+          - test -f .env
+
+  sync:
+    desc: Sync dependencies with uv
+    cmds:
+      - uv sync
+
+  run:
+    desc: Run the Streamlit app
+    cmds:
+      - uv run streamlit run app.py
+
+  run-headless:
+    desc: Run the Streamlit app on port 8501 without opening a browser
+    cmds:
+      - uv run streamlit run app.py --server.headless true --server.port 8501
+
+  index:
+    desc: Rebuild the Chroma index from data/docs
+    cmds:
+      - uv run python ingest.py
+
+  check:
+    desc: Check Python version, syntax, and imports
+    cmds:
+      - uv run python --version
+      - uv run python -m compileall {{.PY_FILES}}
+      - uv run python -c "import app, config, providers, loaders, ingest, rag; print('imports ok')"
+
+  config:
+    desc: Show active provider configuration
+    cmds:
+      - uv run python -c "from config import get_collection_name, get_chat_provider, get_embedding_provider, get_embedding_model; from providers import get_chat_model_name; print(f'chat={get_chat_provider()}:{get_chat_model_name()}'); print(f'embedding={get_embedding_provider()}:{get_embedding_model()}'); print(f'collection={get_collection_name()}')"

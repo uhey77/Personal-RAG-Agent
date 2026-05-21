@@ -5,8 +5,7 @@ PDF、Markdown、txt、コードファイルをローカルで取り込み、質
 ## セットアップ
 
 ```bash
-uv sync
-cp .env.example .env
+task setup
 ```
 
 `.env` を編集して、使うプロバイダのAPIキーを設定します。
@@ -22,10 +21,28 @@ GOOGLE_API_KEY=your_api_key_here
 ## 起動
 
 ```bash
-uv run streamlit run app.py
+task run
 ```
 
 ブラウザで開いたら、サイドバーからファイルをアップロードし、「インデックス作成 / 更新」を押してください。
+
+## Taskfile
+
+よく使う操作は `task` で実行できます。
+
+```bash
+task setup      # Python 3.12と依存関係を準備し、.envがなければ作成
+task run        # Streamlitアプリを起動
+task index      # data/docsからChromaインデックスを再作成
+task check      # Pythonバージョン、構文、importを確認
+task config     # 現在のLLM / Embedding設定を表示
+```
+
+利用可能なタスク一覧は次で確認できます。
+
+```bash
+task --list
+```
 
 ## プロバイダ切替
 
