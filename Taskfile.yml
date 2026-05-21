@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  PY_FILES: app.py config.py providers.py loaders.py ingest.py rag.py
+  PY_FILES: app.py config.py providers.py loaders.py indexer.py rag.py
 
 tasks:
   default:
@@ -36,14 +36,14 @@ tasks:
   index:
     desc: Rebuild the Chroma index from data/docs
     cmds:
-      - uv run python ingest.py
+      - uv run python indexer.py
 
   check:
     desc: Check Python version, syntax, and imports
     cmds:
       - uv run python --version
       - uv run python -m compileall {{.PY_FILES}}
-      - uv run python -c "import app, config, providers, loaders, ingest, rag; print('imports ok')"
+      - uv run python -c "import app, config, providers, loaders, indexer, rag; print('imports ok')"
 
   config:
     desc: Show active provider configuration

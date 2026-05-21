@@ -9,10 +9,10 @@ from pathlib import Path
 import streamlit as st
 
 from config import DOCS_DIR, get_collection_name
-from ingest import ingest_documents
+from indexer import rebuild_index
 from loaders import SUPPORTED_EXTENSIONS, display_path, should_index_path
 from providers import ProviderConfigurationError, get_provider_summary
-from rag import ask
+from rag import RagAssistant
 
 
 def sanitize_upload_name(file_name: str) -> str:
@@ -84,7 +84,7 @@ def render_sidebar() -> None:
         if st.button("インデックス作成 / 更新", type="primary"):
             with st.spinner("Indexing..."):
                 try:
-                    count = ingest_documents()
+                    count = rebuild_index()
                     st.success(f"{count} chunks indexed.")
                 except ProviderConfigurationError as exc:
                     st.error(str(exc))
@@ -103,7 +103,7 @@ def render_sidebar() -> None:
 def render_answer(question: str) -> None:
     with st.spinner("Searching..."):
         try:
-            result = ask(question)
+            result = RagAssistant().ask(question)
         except ProviderConfigurationError as exc:
             st.error(str(exc))
             return
