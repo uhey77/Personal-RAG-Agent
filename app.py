@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from config import DOCS_DIR, get_collection_name
+from config import AppConfig, get_app_config
 from indexer import rebuild_index
 from loaders import SUPPORTED_EXTENSIONS, display_path, should_index_path
 from providers import ProviderConfigurationError, get_provider_summary
@@ -44,16 +44,16 @@ def unique_save_path(directory: Path, file_name: str) -> Path:
     raise RuntimeError("保存先ファイル名を決定できませんでした。")
 
 
-def render_sidebar() -> None:
+def render_sidebar(config: AppConfig) -> None:
     with st.sidebar:
         st.header("設定")
-        provider_summary = get_provider_summary()
+        provider_summary = get_provider_summary(config)
         st.write(f"Chat: {provider_summary['chat_provider']} / {provider_summary['chat_model']}")
         st.write(
             "Embedding: "
             f"{provider_summary['embedding_provider']} / {provider_summary['embedding_model']}"
         )
-        st.caption(f"Collection: {get_collection_name()}")
+        st.caption(f"Collection: {config.collection_name}")
 
         st.header("ファイル追加")
         uploaded_files = st.file_uploader(
@@ -67,7 +67,7 @@ def render_sidebar() -> None:
             skipped_files = []
             for uploaded_file in uploaded_files:
                 safe_name = sanitize_upload_name(uploaded_file.name)
-                save_path = unique_save_path(DOCS_DIR, safe_name)
+                save_path = unique_save_path(config.docs_dir, safe_name)
                 if not should_index_path(save_path):
                     skipped_files.append(uploaded_file.name)
                     continue
@@ -84,7 +84,7 @@ def render_sidebar() -> None:
         if st.button("インデックス作成 / 更新", type="primary"):
             with st.spinner("Indexing..."):
                 try:
-                    count = rebuild_index()
+                    count = rebuild_index(config)
                     st.success(f"{count} chunks indexed.")
                 except ProviderConfigurationError as exc:
                     st.error(str(exc))
@@ -92,7 +92,7 @@ def render_sidebar() -> None:
                     st.exception(exc)
 
         existing_files = sorted(
-            path for path in DOCS_DIR.rglob("*") if path.is_file() and should_index_path(path)
+            path for path in config.docs_dir.rglob("*") if path.is_file() and should_index_path(path)
         )
         if existing_files:
             st.header("保存済みファイル")
@@ -100,10 +100,10 @@ def render_sidebar() -> None:
                 st.write(f"- {display_path(path)}")
 
 
-def render_answer(question: str) -> None:
+def render_answer(question: str, config: AppConfig) -> None:
     with st.spinner("Searching..."):
         try:
-            result = RagAssistant().ask(question)
+            result = RagAssistant(config).ask(question)
         except ProviderConfigurationError as exc:
             st.error(str(exc))
             return
@@ -134,6 +134,7 @@ def render_answer(question: str) -> None:
 
 
 def main() -> None:
+    config = get_app_config()
     st.set_page_config(
         page_title="Personal RAG Assistant",
         layout="wide",
@@ -141,14 +142,14 @@ def main() -> None:
     st.title("Personal RAG Assistant")
     st.caption("PDF・メモ・コードを検索できる個人用RAGアシスタント")
 
-    render_sidebar()
+    render_sidebar(config)
 
     question = st.text_input(
         "質問",
         placeholder="例: このプロジェクトの認証処理はどこで行われている？",
     )
     if question:
-        render_answer(question)
+        render_answer(question, config)
 
 
 if __name__ == "__main__":

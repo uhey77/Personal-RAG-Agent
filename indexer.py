@@ -9,7 +9,7 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from config import CHROMA_DIR, DOCS_DIR, get_collection_name
+from config import AppConfig, get_app_config
 from loaders import load_documents_from_dir
 from providers import create_embeddings
 
@@ -17,13 +17,15 @@ from providers import create_embeddings
 class DocumentIndexer:
     def __init__(
         self,
-        docs_dir: Path = DOCS_DIR,
-        chroma_dir: Path = CHROMA_DIR,
+        config: AppConfig | None = None,
+        docs_dir: Path | None = None,
+        chroma_dir: Path | None = None,
         collection_name: str | None = None,
     ) -> None:
-        self.docs_dir = docs_dir
-        self.chroma_dir = chroma_dir
-        self.collection_name = collection_name or get_collection_name()
+        self.config = config or get_app_config()
+        self.docs_dir = docs_dir or self.config.docs_dir
+        self.chroma_dir = chroma_dir or self.config.chroma_dir
+        self.collection_name = collection_name or self.config.collection_name
 
     def rebuild_index(self) -> int:
         documents = load_documents_from_dir(self.docs_dir)
@@ -32,7 +34,7 @@ class DocumentIndexer:
             return 0
 
         chunks = self.split_documents(documents)
-        embeddings = create_embeddings()
+        embeddings = create_embeddings(self.config)
 
         self.delete_collection_if_exists()
         vectorstore = Chroma(
@@ -75,8 +77,8 @@ class DocumentIndexer:
         return chunks
 
 
-def rebuild_index() -> int:
-    return DocumentIndexer().rebuild_index()
+def rebuild_index(config: AppConfig | None = None) -> int:
+    return DocumentIndexer(config=config).rebuild_index()
 
 
 if __name__ == "__main__":

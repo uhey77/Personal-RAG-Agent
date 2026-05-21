@@ -48,4 +48,4 @@ tasks:
   config:
     desc: Show active provider configuration
     cmds:
-      - uv run python -c "from config import get_collection_name, get_chat_provider, get_embedding_provider, get_embedding_model; from providers import get_chat_model_name; print(f'chat={get_chat_provider()}:{get_chat_model_name()}'); print(f'embedding={get_embedding_provider()}:{get_embedding_model()}'); print(f'collection={get_collection_name()}')"
+      - uv run python -c "from config import get_app_config; config = get_app_config(); print(f'chat={config.chat_provider}:{config.chat_model}'); print(f'embedding={config.embedding_provider}:{config.embedding_model}'); print(f'collection={config.collection_name}')"

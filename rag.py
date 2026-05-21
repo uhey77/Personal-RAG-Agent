@@ -6,7 +6,7 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 
-from config import CHROMA_DIR, get_collection_name, get_min_relevance_score
+from config import AppConfig, get_app_config
 from providers import create_chat_model, create_embeddings
 
 SYSTEM_PROMPT = (
@@ -36,8 +36,13 @@ PROMPT = ChatPromptTemplate.from_messages(
 
 
 class RagAssistant:
-    def __init__(self, collection_name: str | None = None) -> None:
-        self.collection_name = collection_name or get_collection_name()
+    def __init__(
+        self,
+        config: AppConfig | None = None,
+        collection_name: str | None = None,
+    ) -> None:
+        self.config = config or get_app_config()
+        self.collection_name = collection_name or self.config.collection_name
 
     def ask(self, question: str) -> dict:
         vectorstore = self.get_vectorstore()
@@ -56,7 +61,7 @@ class RagAssistant:
             return self.not_found_response(docs)
 
         context = self.format_docs(docs)
-        chain = PROMPT | create_chat_model()
+        chain = PROMPT | create_chat_model(self.config)
         response = chain.invoke(
             {
                 "question": question,
@@ -73,8 +78,8 @@ class RagAssistant:
     def get_vectorstore(self) -> Chroma:
         return Chroma(
             collection_name=self.collection_name,
-            embedding_function=create_embeddings(),
-            persist_directory=str(CHROMA_DIR),
+            embedding_function=create_embeddings(self.config),
+            persist_directory=str(self.config.chroma_dir),
         )
 
     def format_source(self, doc: Document) -> str:
@@ -98,7 +103,7 @@ class RagAssistant:
         }
 
     def has_relevant_context(self, vectorstore: Chroma, question: str) -> bool:
-        threshold = get_min_relevance_score()
+        threshold = self.config.min_relevance_score
         if threshold <= 0:
             return True
 

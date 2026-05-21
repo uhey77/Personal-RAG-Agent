@@ -7,7 +7,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from config import get_chat_provider, get_embedding_model, get_embedding_provider, get_env
+from config import AppConfig, get_app_config
 
 
 class ProviderConfigurationError(RuntimeError):
@@ -20,28 +20,28 @@ DEFAULT_CHAT_MODELS = {
 }
 
 
-def _require_env(name: str, provider: str) -> None:
-    if not get_env(name):
+def _require_api_key(value: str, name: str, provider: str) -> None:
+    if not value:
         raise ProviderConfigurationError(
             f"{provider} を使うには .env に {name} を設定してください。"
         )
 
 
-def get_chat_model_name() -> str:
-    provider = get_chat_provider()
-    return get_env("CHAT_MODEL", DEFAULT_CHAT_MODELS.get(provider, "gemini-2.5-flash-lite"))
+def get_chat_model_name(config: AppConfig | None = None) -> str:
+    return (config or get_app_config()).chat_model
 
 
-def create_chat_model() -> BaseChatModel:
-    provider = get_chat_provider()
-    model = get_chat_model_name()
+def create_chat_model(config: AppConfig | None = None) -> BaseChatModel:
+    config = config or get_app_config()
+    provider = config.chat_provider
+    model = config.chat_model
 
     if provider == "openai":
-        _require_env("OPENAI_API_KEY", "OpenAI")
+        _require_api_key(config.openai_api_key, "OPENAI_API_KEY", "OpenAI")
         return ChatOpenAI(model=model, temperature=0)
 
     if provider == "google":
-        _require_env("GOOGLE_API_KEY", "Google")
+        _require_api_key(config.google_api_key, "GOOGLE_API_KEY", "Google")
         return ChatGoogleGenerativeAI(model=model, temperature=0)
 
     raise ProviderConfigurationError(
@@ -49,16 +49,17 @@ def create_chat_model() -> BaseChatModel:
     )
 
 
-def create_embeddings() -> Embeddings:
-    provider = get_embedding_provider()
-    model = get_embedding_model()
+def create_embeddings(config: AppConfig | None = None) -> Embeddings:
+    config = config or get_app_config()
+    provider = config.embedding_provider
+    model = config.embedding_model
 
     if provider == "openai":
-        _require_env("OPENAI_API_KEY", "OpenAI embeddings")
+        _require_api_key(config.openai_api_key, "OPENAI_API_KEY", "OpenAI embeddings")
         return OpenAIEmbeddings(model=model)
 
     if provider == "google":
-        _require_env("GOOGLE_API_KEY", "Google embeddings")
+        _require_api_key(config.google_api_key, "GOOGLE_API_KEY", "Google embeddings")
         return GoogleGenerativeAIEmbeddings(model=model)
 
     raise ProviderConfigurationError(
@@ -66,10 +67,11 @@ def create_embeddings() -> Embeddings:
     )
 
 
-def get_provider_summary() -> dict[str, str]:
+def get_provider_summary(config: AppConfig | None = None) -> dict[str, str]:
+    config = config or get_app_config()
     return {
-        "chat_provider": get_chat_provider(),
-        "chat_model": get_chat_model_name(),
-        "embedding_provider": get_embedding_provider(),
-        "embedding_model": get_embedding_model(),
+        "chat_provider": config.chat_provider,
+        "chat_model": config.chat_model,
+        "embedding_provider": config.embedding_provider,
+        "embedding_model": config.embedding_model,
     }
