@@ -1,0 +1,27 @@
+[project]
+name = "personal-rag-agent"
+version = "0.1.0"
+description = "Local personal RAG assistant for PDFs, notes, and code."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "AGPL-3.0-or-later"
+classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "chromadb",
+    "langchain",
+    "langchain-chroma",
+    "langchain-community",
+    "langchain-google-genai",
+    "langchain-openai",
+    "langchain-text-splitters",
+    "pymupdf>=1.27.2.3",
+    "python-dotenv",
+    "streamlit",
+    "tiktoken",
+]
+
+[tool.uv]
+package = false
