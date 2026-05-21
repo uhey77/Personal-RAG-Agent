@@ -108,7 +108,3 @@ class RagAssistant:
 
         _, score = scored_docs[0]
         return score >= threshold
-
-
-def ask(question: str) -> dict:
-    return RagAssistant().ask(question)
