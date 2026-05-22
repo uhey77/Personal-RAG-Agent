@@ -113,6 +113,8 @@ def render_answer(question: str, config: AppConfig) -> None:
 
     st.subheader("回答")
     st.write(result["answer"])
+    if result.get("used_rewrite"):
+        st.caption(f"検索クエリを書き換えて再検索しました: {result['search_query']}")
 
     st.subheader("参照")
     if result["sources"]:

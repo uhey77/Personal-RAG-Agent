@@ -2,6 +2,8 @@
 
 PDF、Markdown、txt、コードファイルをローカルで取り込み、質問できる個人用RAGアシスタントです。UIはStreamlit、RAGはLangChain、Vector DBはChromaを使います。PDFのテキスト抽出には、日本語Keynote PDFでも文字化けしにくいPyMuPDFを使います。
 
+質問応答部分ではLangGraphを使い、検索結果が弱い場合だけ質問を検索向けに書き換えて1回だけ再検索します。
+
 ## セットアップ
 
 ```bash
@@ -63,6 +65,19 @@ GOOGLE_API_KEY=your_api_key_here
 ```
 
 Embeddingプロバイダまたはモデルを変えると、別のChroma collectionを使います。
+
+## LangGraphの使い方
+
+質問応答は次のグラフで処理します。
+
+```text
+retrieve
+  ├─ 検索結果が十分   -> generate_answer
+  ├─ 検索結果が弱い   -> rewrite_query -> retrieve
+  └─ 再検索後も弱い   -> not_found
+```
+
+`rewrite_query` はLLMを使って、元の質問を検索しやすい短いクエリに変換します。再検索は1回だけ行い、それでも根拠が弱い場合は「資料内では確認できません」と返します。
 
 ## 対応ファイル
 

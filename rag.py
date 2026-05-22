@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Literal, TypedDict
+
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import END, StateGraph
 
 from config import AppConfig, get_app_config
 from providers import create_chat_model, create_embeddings
@@ -34,6 +37,33 @@ PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
+REWRITE_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "あなたはRAG検索用のクエリを書き換えるアシスタントです。"
+            "回答はせず、資料検索で見つかりやすい短い検索クエリだけを返してください。",
+        ),
+        (
+            "human",
+            "元の質問:\n{question}\n\n"
+            "前回の検索クエリ:\n{search_query}\n\n"
+            "検索しやすいクエリに書き換えてください。",
+        ),
+    ]
+)
+
+
+class RagGraphState(TypedDict, total=False):
+    question: str
+    search_query: str
+    retry_count: int
+    docs: list[Document]
+    is_relevant: bool
+    answer: str
+    sources: list[str]
+    retrieved_docs: list[Document]
+
 
 class RagAssistant:
     def __init__(
@@ -43,8 +73,48 @@ class RagAssistant:
     ) -> None:
         self.config = config or get_app_config()
         self.collection_name = collection_name or self.config.collection_name
+        self.graph = self.build_graph()
 
     def ask(self, question: str) -> dict:
+        result = self.graph.invoke(
+            {
+                "question": question,
+                "search_query": question,
+                "retry_count": 0,
+            }
+        )
+        return {
+            "answer": result["answer"],
+            "sources": result["sources"],
+            "retrieved_docs": result["retrieved_docs"],
+            "search_query": result.get("search_query", question),
+            "used_rewrite": result.get("retry_count", 0) > 0,
+        }
+
+    def build_graph(self):
+        graph = StateGraph(RagGraphState)
+        graph.add_node("retrieve", self.retrieve)
+        graph.add_node("rewrite_query", self.rewrite_query)
+        graph.add_node("generate_answer", self.generate_answer)
+        graph.add_node("not_found", self.not_found)
+        graph.set_entry_point("retrieve")
+        graph.add_conditional_edges(
+            "retrieve",
+            self.route_after_retrieve,
+            {
+                "generate_answer": "generate_answer",
+                "rewrite_query": "rewrite_query",
+                "not_found": "not_found",
+            },
+        )
+        graph.add_edge("rewrite_query", "retrieve")
+        graph.add_edge("generate_answer", END)
+        graph.add_edge("not_found", END)
+        return graph.compile()
+
+    def retrieve(self, state: RagGraphState) -> RagGraphState:
+        question = state["question"]
+        search_query = state.get("search_query") or question
         vectorstore = self.get_vectorstore()
         retriever = vectorstore.as_retriever(
             search_type="mmr",
@@ -53,18 +123,47 @@ class RagAssistant:
                 "fetch_k": 15,
             },
         )
-        docs = retriever.invoke(question)
-        if not docs:
-            return self.not_found_response()
+        docs = retriever.invoke(search_query)
+        is_relevant = bool(docs) and self.has_relevant_context(vectorstore, search_query)
+        return {
+            "search_query": search_query,
+            "docs": docs,
+            "is_relevant": is_relevant,
+        }
 
-        if not self.has_relevant_context(vectorstore, question):
-            return self.not_found_response(docs)
+    def route_after_retrieve(
+        self,
+        state: RagGraphState,
+    ) -> Literal["generate_answer", "rewrite_query", "not_found"]:
+        if state.get("docs") and state.get("is_relevant"):
+            return "generate_answer"
 
+        if state.get("retry_count", 0) < 1:
+            return "rewrite_query"
+
+        return "not_found"
+
+    def rewrite_query(self, state: RagGraphState) -> RagGraphState:
+        chain = REWRITE_PROMPT | create_chat_model(self.config)
+        response = chain.invoke(
+            {
+                "question": state["question"],
+                "search_query": state.get("search_query") or state["question"],
+            }
+        )
+        rewritten_query = str(response.content).strip() or state["question"]
+        return {
+            "search_query": rewritten_query,
+            "retry_count": state.get("retry_count", 0) + 1,
+        }
+
+    def generate_answer(self, state: RagGraphState) -> RagGraphState:
+        docs = state.get("docs", [])
         context = self.format_docs(docs)
         chain = PROMPT | create_chat_model(self.config)
         response = chain.invoke(
             {
-                "question": question,
+                "question": state["question"],
                 "context": context,
             }
         )
@@ -73,6 +172,14 @@ class RagAssistant:
             "answer": response.content,
             "sources": sources,
             "retrieved_docs": docs,
+        }
+
+    def not_found(self, state: RagGraphState) -> RagGraphState:
+        response = self.not_found_response(state.get("docs", []))
+        return {
+            "answer": response["answer"],
+            "sources": response["sources"],
+            "retrieved_docs": response["retrieved_docs"],
         }
 
     def get_vectorstore(self) -> Chroma:
